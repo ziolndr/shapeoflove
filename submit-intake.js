@@ -1,8 +1,7 @@
-import { Resend } from 'resend';
-
 const INTERNAL_TO = process.env.SOL_INTERNAL_TO;
 const FROM = process.env.RESEND_FROM || 'Shape of Love <onboarding@resend.dev>';
 const REPLY_TO = process.env.SOL_REPLY_TO || INTERNAL_TO;
+const RESEND_KEY = process.env.RESEND_API || process.env.RESEND_API_KEY;
 
 function esc(value = '') {
   return String(value)
@@ -91,14 +90,40 @@ function htmlReceipt(payload, internal = false) {
   </html>`;
 }
 
+async function sendResendEmail({ to, replyTo, subject, html, text }) {
+  const resp = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: FROM,
+      to: Array.isArray(to) ? to : [to],
+      reply_to: replyTo,
+      subject,
+      html,
+      text,
+    }),
+  });
+
+  const data = await resp.json().catch(() => ({}));
+
+  if (!resp.ok) {
+    throw new Error(data?.message || data?.error || `Resend HTTP ${resp.status}`);
+  }
+
+  return data;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    return res.status(500).json({ ok: false, error: 'Missing RESEND_API_KEY server environment variable.' });
+  if (!RESEND_KEY) {
+    return res.status(500).json({ ok: false, error: 'Missing RESEND_API or RESEND_API_KEY server environment variable.' });
   }
 
   if (!INTERNAL_TO || !INTERNAL_TO.includes('@')) {
@@ -112,21 +137,17 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Missing applicant email.' });
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-
   try {
-    const internal = await resend.emails.send({
-      from: FROM,
-      to: [INTERNAL_TO],
+    const internal = await sendResendEmail({
+      to: INTERNAL_TO,
       replyTo: applicantEmail,
       subject: `SOL intake received — ${payload.confirmationCode || 'no-code'}`,
       html: htmlReceipt(payload, true),
       text: plainReceipt(payload),
     });
 
-    const applicant = await resend.emails.send({
-      from: FROM,
-      to: [applicantEmail],
+    const applicant = await sendResendEmail({
+      to: applicantEmail,
       replyTo: REPLY_TO,
       subject: `Your SOL intent receipt — ${payload.confirmationCode || 'SOL'}`,
       html: htmlReceipt(payload, false),
@@ -135,15 +156,14 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      internalId: internal?.data?.id || null,
-      applicantId: applicant?.data?.id || null,
+      internalId: internal?.id || null,
+      applicantId: applicant?.id || null,
     });
   } catch (error) {
     console.error('Resend send failed', error);
     return res.status(502).json({
       ok: false,
       error: error?.message || 'Resend send failed',
-      details: error?.name || null,
     });
   }
 }
