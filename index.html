@@ -619,8 +619,8 @@ async function submitWithResend(payload){
   }catch(_){}
 
   if(!resp.ok || data.ok === false){
-    const message = data.error || ('Email endpoint failed with HTTP ' + resp.status);
-    throw new Error(message);
+    const parts = [data.error || ('Email endpoint failed with HTTP ' + resp.status), data.step ? ('step: ' + data.step) : '', data.resendStatus ? ('resend: ' + data.resendStatus) : ''].filter(Boolean);
+    throw new Error(parts.join(' · '));
   }
 
   return data;
@@ -629,7 +629,7 @@ form.addEventListener('submit', async (e)=>{
   e.preventDefault(); if(!form.reportValidity()) return; const profile = collect(); if(!profile.seeking.length && !$('#seekingCustom').value.trim()){ statusEl.className='status err'; statusEl.textContent='Add at least one match field option.'; return; }
   const code = getOrCreateConfirmationCode(); const profileText = $('#profileText').value.trim(); const profileEngineText = getProfileEngineText(); submitBtn.classList.add('submitting'); statusEl.className='status'; statusEl.textContent='Finalizing ARBITER signature…';
   try{ if(!currentShape && profileEngineText.length >= 80){ const vec = await arbiterProjectText(profileEngineText); traceSig(vec); } }catch(err){ statusEl.className='status err'; statusEl.textContent='ARBITER signature unavailable.'; }
-  const profileShapeImage = captureShapeImage(); const payload = {confirmationCode:code, profile, profileText, profileEngineText, profileShape:currentShape, profileShapeImage, createdAt:new Date().toISOString()}; statusEl.className='status'; statusEl.textContent='Sending receipt…';
+  const payload = {confirmationCode:code, profile, profileText, profileEngineText, profileShape:currentShape, createdAt:new Date().toISOString()}; statusEl.className='status'; statusEl.textContent='Sending receipt…';
   try{
     await submitWithResend(payload);
     submitBtn.classList.remove('submitting');
