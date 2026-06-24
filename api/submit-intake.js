@@ -163,21 +163,44 @@ module.exports = async function handler(req, res) {
       throw error;
     });
 
-    const applicant = await sendResendEmail({
-      to: applicantEmail,
-      replyTo: REPLY_TO,
-      subject: `Your SOL intent receipt — ${payload.confirmationCode || 'SOL'}`,
-      html: htmlReceipt(payload, false),
-      text: plainReceipt(payload),
-    }).catch((error) => {
-      error.step = 'send-applicant';
-      throw error;
-    });
+    let applicant = null;
+    let applicantSkipped = false;
+    let applicantWarning = null;
+
+    try {
+      applicant = await sendResendEmail({
+        to: applicantEmail,
+        replyTo: REPLY_TO,
+        subject: `Your SOL intent receipt — ${payload.confirmationCode || 'SOL'}`,
+        html: htmlReceipt(payload, false),
+        text: plainReceipt(payload),
+      });
+    } catch (error) {
+      const message = String(error?.message || '');
+      const isResendSandboxLimit =
+        error?.status === 403 &&
+        (message.includes('only send testing emails') || message.includes('verify a domain'));
+
+      if (!isResendSandboxLimit) {
+        error.step = 'send-applicant';
+        throw error;
+      }
+
+      applicantSkipped = true;
+      applicantWarning = 'Applicant receipt skipped until a sending domain is verified in Resend.';
+      console.warn('Applicant receipt skipped by Resend sandbox restriction', {
+        applicantEmail,
+        message,
+        status: error?.status,
+      });
+    }
 
     return res.status(200).json({
       ok: true,
       internalId: internal?.id || null,
       applicantId: applicant?.id || null,
+      applicantSkipped,
+      warning: applicantWarning,
     });
   } catch (error) {
     console.error('SOL submit-intake failed', {
