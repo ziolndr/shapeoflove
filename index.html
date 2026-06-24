@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -115,7 +116,27 @@ img { max-width: 100%; display: block; }
 .form-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
 .form-top h3 { margin: 0; font-size: 30px; line-height: 1; letter-spacing: -.03em; }
 .form-top p { margin: 10px 0 0; color: var(--ink-soft); }
-.sample-btn { min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line-strong); background: #fff; color: var(--ink); cursor: pointer; }
+.form-top-actions { flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: flex-end; }
+.sample-btn {
+  min-height: 44px;
+  min-width: 158px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1;
+  font-size: 14px;
+  letter-spacing: .01em;
+  box-shadow: 0 8px 24px rgba(0,0,0,.04);
+}
+.sample-btn:hover { border-color: var(--gold); transform: translateY(-1px); }
+.sample-btn:focus-visible { outline: 2px solid rgba(200,154,84,.35); outline-offset: 3px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field.full { grid-column: 1 / -1; }
@@ -173,6 +194,12 @@ textarea { min-height: 210px; resize: vertical; }
   .hero__card { width: 100%; }
   .topbar__wordmark, .footer__wordmark { height: 34px; }
 }
+@media (max-width: 640px) {
+  .form-top { flex-direction: column; align-items: stretch; }
+  .form-top-actions { justify-content: flex-start; }
+  .sample-btn { width: auto; align-self: flex-start; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
