@@ -631,12 +631,14 @@ form.addEventListener('submit', async (e)=>{
   try{ if(!currentShape && profileEngineText.length >= 80){ const vec = await arbiterProjectText(profileEngineText); traceSig(vec); } }catch(err){ statusEl.className='status err'; statusEl.textContent='ARBITER signature unavailable.'; }
   const payload = {confirmationCode:code, profile, profileText, profileEngineText, profileShape:currentShape, createdAt:new Date().toISOString()}; statusEl.className='status'; statusEl.textContent='Sending receipt…';
   try{
-    await submitWithResend(payload);
+    const sendResult = await submitWithResend(payload);
     submitBtn.classList.remove('submitting');
     confirmCodeEl.textContent = code;
     result.classList.add('show');
     statusEl.className='status ok';
-    statusEl.textContent='Sent. Check inbox and spam for the receipt.';
+    statusEl.textContent = sendResult.applicantSkipped
+      ? 'Intake sent. Applicant receipt will send after the Resend domain is verified.'
+      : 'Sent. Check inbox and spam for the receipt.';
     setTimeout(()=>result.scrollIntoView({behavior:'smooth', block:'center'}), 250);
     return;
   }catch(err){
