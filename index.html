@@ -100,6 +100,23 @@ img { max-width: 100%; display: block; }
 .shape-note { margin-top: 6px; font-size: 14px; color: var(--ink-soft); }
 .preview-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 9px 12px; border-radius: 999px; border: 1px solid rgba(214,154,45,.35); background: var(--gold-soft); color: #9a6a10; font-size: 13px; white-space: nowrap; }
 #shapeCanvas { width: 100%; height: 220px; border-radius: 24px; background: #17130d; display: block; }
+.compute-shape-btn {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 14px;
+  border: 1px solid rgba(214,154,45,.38);
+  border-radius: 999px;
+  background: var(--gold);
+  color: #17130d;
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: .01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.compute-shape-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(214,154,45,.18); }
+.compute-shape-btn:disabled { opacity: .58; cursor: wait; transform: none; box-shadow: none; }
 .shape-status { margin-top: 14px; min-height: 22px; color: var(--ink-soft); font-size: 14px; }
 .shape-status.live { color: var(--green); }
 .shape-status.err { color: var(--error); }
@@ -280,12 +297,13 @@ textarea { min-height: 210px; resize: vertical; }
           <div class="preview-top">
             <div>
               <div class="preview-title">Profile shape preview</div>
-              <div class="shape-note">Generated from your answers as you type.</div>
+              <div class="shape-note">Fill out the profile, then compute the shape once.</div>
             </div>
             <div class="preview-code" id="shapeCode">SOL-—</div>
           </div>
           <canvas id="shapeCanvas" width="720" height="360"></canvas>
-          <div class="shape-status" id="shapeStatus">ARBITER signature appears after enough profile text is entered.</div>
+          <button class="compute-shape-btn" id="computeShapeBtn" type="button">Compute shape</button>
+          <div class="shape-status" id="shapeStatus">Shape appears after you press Compute shape.</div>
           <div class="share-row">
             <button class="share-btn" id="shareReceiptBtn" type="button">Share intent receipt</button>
             <span class="share-status" id="shareStatus"></span>
@@ -544,14 +562,45 @@ function traceSig(vec, opts={}){
   shapeStatusEl.textContent = 'ARBITER-computed profile signature';
   currentShape = { source:'ARBITER /public/compare projection', axes:ARBITER_AXES.map((a,i)=>({key:a.key, score:clamp01(vec[i])})), projection:vec.map(clamp01), score, code:projectionCode(vec), seed:projectionSeed(vec,'ARBITER live intake projection') };
 }
-function scheduleArbiterShape(){ clearTimeout(shapeTimer); shapeTimer = setTimeout(updateArbiterShape, 650); }
-async function updateArbiterShape(){
+async function computeArbiterShape(){
+  clearTimeout(shapeTimer);
   const text = getProfileEngineText();
-  if(text.replace(/\s+/g,' ').trim().length < 80){ clearShape('Add more profile text to compute the ARBITER signature.'); return; }
-  const seq = ++shapeSeq; shapeStatusEl.className='shape-status live'; shapeStatusEl.textContent='Computing with ARBITER…';
-  try{ const vec = await arbiterProjectText(text); if(seq !== shapeSeq) return; traceSig(vec); }catch(err){ if(seq !== shapeSeq) return; clearShape('ARBITER unavailable.', 'err'); console.warn('ARBITER signature unavailable', err); }
+  if(text.replace(/\s+/g,' ').trim().length < 80){
+    clearShape('Add more profile text, then press Compute shape.', 'err');
+    return null;
+  }
+  const seq = ++shapeSeq;
+  if(computeShapeBtn) computeShapeBtn.disabled = true;
+  shapeStatusEl.className='shape-status live';
+  shapeStatusEl.textContent='Computing shape…';
+  try{
+    const vec = await arbiterProjectText(text);
+    if(seq !== shapeSeq) return null;
+    traceSig(vec);
+    return vec;
+  }catch(err){
+    if(seq !== shapeSeq) return null;
+    clearShape('Shape compute unavailable. Try again in a moment.', 'err');
+    console.warn('ARBITER signature unavailable', err);
+    return null;
+  }finally{
+    if(seq === shapeSeq && computeShapeBtn) computeShapeBtn.disabled = false;
+  }
 }
-['input','change'].forEach(evt=>form.addEventListener(evt,scheduleArbiterShape));
+if(computeShapeBtn) computeShapeBtn.addEventListener('click', computeArbiterShape);
+function markShapeNeedsCompute(){
+  clearTimeout(shapeTimer);
+  if(currentShape){
+    currentShape = null;
+    shapeCodeEl.textContent = 'SOL-—';
+    shapeStatusEl.className = 'shape-status';
+    shapeStatusEl.textContent = 'Profile changed. Press Compute shape again.';
+  } else if((shapeStatusEl.textContent || '').includes('appears after')){
+    shapeStatusEl.className = 'shape-status';
+    shapeStatusEl.textContent = 'Ready when you are. Press Compute shape.';
+  }
+}
+['input','change'].forEach(evt=>form.addEventListener(evt,markShapeNeedsCompute));
 window.addEventListener('resize',()=>{ currentShape ? traceSig(currentShape.projection) : clearShape(shapeStatusEl.textContent || undefined, shapeStatusEl.classList.contains('err') ? 'err' : ''); });
 clearShape();
 
@@ -589,7 +638,7 @@ I work in a creative field and care deeply about aesthetics, music, film, home, 
 
 My strongest match would probably be someone emotionally safe but not passive, ambitious but not frantic, spiritually open or grounded, and ready to build a home over time. Someone who has lived enough life to know what they want, who can be playful without being unserious, and who understands that love is not just chemistry but rhythm, responsibility, repair, and shared direction.`);
   setCheckbox('isAdult', true); setCheckbox('emailConsent', true); setCheckbox('privacyConsent', true);
-  statusEl.className = 'status ok'; statusEl.textContent = 'Sample profile filled. Submit intake to test the email flow.'; scheduleArbiterShape(); const firstEmpty = $('#fullName'); if(firstEmpty) firstEmpty.focus({preventScroll:true});
+  statusEl.className = 'status ok'; statusEl.textContent = 'Sample profile filled. Press Compute shape when ready.'; markShapeNeedsCompute(); const firstEmpty = $('#fullName'); if(firstEmpty) firstEmpty.focus({preventScroll:true});
 }
 const sampleBtn = $('#sampleBtn'); if(sampleBtn) sampleBtn.addEventListener('click', fillSampleProfile);
 
@@ -599,7 +648,7 @@ function readableIntakeEmail(payload){
   ].filter(Boolean).join('\n');
 }
 function getOrCreateConfirmationCode(){ const existing = confirmCodeEl.dataset.code || ''; if(existing) return existing; const code = confirmationCode(); confirmCodeEl.dataset.code = code; confirmCodeEl.textContent = code; return code; }
-async function ensureShareShape(){ const profileEngineText = getProfileEngineText(); if(profileEngineText.replace(/\s+/g,' ').trim().length < 80) throw new Error('Add more profile text before sharing the receipt.'); const vec = await arbiterProjectText(profileEngineText); traceSig(vec); return vec; }
+async function ensureShareShape(){ const profileEngineText = getProfileEngineText(); if(profileEngineText.replace(/\s+/g,' ').trim().length < 80) throw new Error('Add more profile text before sharing the receipt.'); if(!currentShape) throw new Error('Press Compute shape before sharing the receipt.'); return currentShape.projection; }
 function wrapLines(ctx, text, maxWidth){ const words = String(text || '').replace(/\s+/g,' ').trim().split(' ').filter(Boolean); const lines=[]; let line=''; words.forEach(word=>{ const test=line?line+' '+word:word; if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line=word; } else { line=test; } }); if(line) lines.push(line); return lines; }
 function wrapParagraphBlocks(ctx, text, maxWidth){ const paragraphs=String(text||'').split(/\n\s*\n/).map(p=>p.trim()).filter(Boolean); const blocks=[]; paragraphs.forEach((paragraph,index)=>{ const lines=wrapLines(ctx, paragraph, maxWidth); blocks.push(...lines); if(index < paragraphs.length-1) blocks.push(''); }); return blocks.length ? blocks : ['—']; }
 function blobFromCanvas(canvas){ return new Promise(resolve=>canvas.toBlob(resolve, 'image/png', .95)); }
